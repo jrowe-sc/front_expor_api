@@ -41,14 +41,31 @@ export type ConversationStatus =
 export interface Conversation extends Resource {
     subject: string;
     status: ConversationStatus;
-    assignee: Teammate;
-    recipient: Recipient;
+    // assignee: Teammate;
+    assignee?: Assignee;
+    // recipient: Recipient;
+    recipient?: Recipient;
     tags: [Tag];
     links: [TopicLink];
     created_at: number;
     is_private: boolean;
     scheduled_reminders: [Reminder];
     metadata: ConversationMetadata;
+    custom_fields?: CustomFields;
+}
+
+export interface Assignee {
+    id: string;
+    email?: string;
+    username?: string;
+}
+
+export interface Recipient {
+    handle: string;
+}
+
+export interface CustomFields {
+    'Deal ID-text'?: string;
 }
 
 export interface Teammate extends Resource {
@@ -85,6 +102,7 @@ export type TagHighlight =
     | 'purple';
 
 export interface Tag extends Resource {
+    id: string;
     name: string;
     highlight: TagHighlight;
     is_private: boolean;
@@ -94,6 +112,7 @@ export interface Tag extends Resource {
 }
 
 export interface TopicLink extends Resource {
+    id: string;
     name: string;
     type: string;
     external_url: string;

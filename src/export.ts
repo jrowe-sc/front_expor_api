@@ -1,5 +1,5 @@
 import { Conversation, ConversationStatus, Inbox, Message, Comment, Attachment } from './types'
-import { exportInbox, exportConversation, exportMessage, exportComment, exportAttachment } from './helpers';
+import { exportInbox, exportConversation, collectConversation, exportMessage, exportComment, exportAttachment } from './helpers';
 import { FrontConnector } from './connector';
 
 // Testing logs: https://hq.frontapp.com/logs/goto/e371ec184570a54211ed7118325c4452
@@ -7,7 +7,8 @@ import { FrontConnector } from './connector';
 export type ExportOptions = {
     shouldIncludeMessages: boolean, 
     shouldIncludeComments: boolean,
-    shouldIncludeAttachments: boolean
+    shouldIncludeAttachments: boolean,
+    customOutputFormatOneFile: boolean
 }
 
 // Unix epoch seconds timestamps
@@ -48,30 +49,71 @@ export class FrontExport {
         return this._exportConversationsWithOptions(searchConversations, './export/search', options);
     }
 
+    // Map each conversation to the new export format with additional fields
+    private static mapConversationToExportFormat(conversation: Conversation, ts: string) {
+        return {
+            conv_id: conversation.id,
+            subject: conversation.subject,
+            status: conversation.status,
+            assignee_id: conversation.assignee?.id ?? null,
+            assignee_email: conversation.assignee?.email ?? null,
+            assignee_username: conversation.assignee?.username ?? null,
+            recipient: conversation.recipient?.handle ?? null,
+            tags: conversation.tags?.map(tag => tag.id) ?? [],
+            front_link_id: conversation.links?.map(link => link.id) ?? [],
+            top_external_url: conversation.links?.map(link => link.external_url ?? null) ?? [],
+            deal_id: conversation.custom_fields?.['Deal ID-text'] ?? null,
+            created_at: conversation.created_at,
+            _extracted_at: ts
+        };
+    }
+
     // Although the export helpers determine how each resource exports, this implementation
     // focuses on nesting the related resources as files in directories.  The paths don't need to be
     // used by the helpers but reflect the structure of conversations' data.
     private static async _exportConversationsWithOptions(conversations: Conversation[], exportPath: string, options?: ExportOptions): Promise<Conversation[]> {
-        for (const conversation of conversations) {
-            // Everything past this point nests in conversation's path
-            const conversationPath = `${exportPath}/${conversation.id}`;
-            exportConversation(conversationPath, conversation);
-    
-            if (options?.shouldIncludeMessages) {
-                const messages = await this._exportConversationMessages(conversationPath, conversation);
-    
-                // Attachments get a directory matching the 
-                if (options?.shouldIncludeAttachments) {
-                    for (const message of messages) {
-                        await this._exportMessageAttachments(conversationPath, message);
-                    }     
-                }
-            }         
-            if (options?.shouldIncludeComments) {
-                await this._exportConversationComments(conversationPath, conversation);
+
+        if (options?.customOutputFormatOneFile) {
+            const formattedConversations: Conversation[] = [];
+            const ts = new Date().toISOString(); // Generate timestamp once
+            for (const conversation of conversations) {
+                const formattedConversation = this.mapConversationToExportFormat(conversation, ts);
+                formattedConversations.push(formattedConversation as unknown as Conversation);
             }
+            // return formattedConversation;
+            return formattedConversations;
         }
+
+        else {
+            const csvPath = `${exportPath}/conversations.csv`;
+            for (const conversation of conversations) {
+                // Everything past this point nests in conversation's path
+                const conversationPath = `${exportPath}/${conversation.id}`;
+                exportConversation(conversationPath, conversation);
+
+                // Transform conversation data to the new format
+                // const formattedConversation = this.mapConversationToExportFormat(conversation, ts);
+                // exportConversation(conversationPath, formattedConversation);
+                // exportConversation(conversationPath, formattedConversation as unknown as Conversation); //temporary workaround for TypeError
+                // exportConversationRow(csvPath, formattedConversation);
+                // collectConversation(formattedConversation as unknown as Conversation); //temporary workaround for TypeError
+        
+                if (options?.shouldIncludeMessages) {
+                    const messages = await this._exportConversationMessages(conversationPath, conversation);
+        
+                    // Attachments get a directory matching the 
+                    if (options?.shouldIncludeAttachments) {
+                        for (const message of messages) {
+                            await this._exportMessageAttachments(conversationPath, message);
+                        }     
+                    }
+                }         
+                if (options?.shouldIncludeComments) {
+                    await this._exportConversationComments(conversationPath, conversation);
+                }
+            }
         return conversations;
+        }
     }
 
     private static async _exportConversationMessages(path: string, conversation: Conversation): Promise<Message[]> {

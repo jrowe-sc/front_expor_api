@@ -1,5 +1,6 @@
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, appendFileSync, existsSync} from 'fs';
 import { Conversation, Inbox, Message, Comment, Attachment } from './types';
+import { parse } from 'json2csv';
 
 // Customer-defined handlers for loading the exported resources into their system
 
@@ -12,6 +13,43 @@ export function exportInbox(path: string, inbox : Inbox) : boolean {
     }
 }
 
+// instantiate an empty list to collect conversations
+const conversationsListData: Conversation[] = [];
+
+// function to add a conversation to the list
+export function collectConversation(conversation: Conversation): void {
+    conversationsListData.push(conversation);
+}
+
+// define the csv headers to get rid of blank columns
+const csvHeaders = [
+    'conv_id',
+    'subject',
+    'status',
+    'assignee_id',
+    'assignee_email',
+    'assignee_username',
+    'recipient',
+    'tags',
+    'front_link_id',
+    'top_external_url',
+    'deal_id',
+    'created_at',
+    '_extracted_at'
+];
+
+// function to export conversations to a CSV file
+export function exportToCSV(filePath: string): void {
+    try {
+        const csv = parse(conversationsListData, { fields: csvHeaders });  // converts json
+        writeFileSync(filePath, csv);          // write csv data to file
+        console.log(`Exported ${conversationsListData.length} conversations to ${filePath}`);
+    } catch (error) {
+        console.error('Error exporting to CSV:', error);
+    }
+}
+
+// Exports a single conversation to a JSON file
 export function exportConversation(path: string, conversation : Conversation) : boolean {
     try {
         // creates a directory for a conversation's messages

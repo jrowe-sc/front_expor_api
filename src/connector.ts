@@ -11,9 +11,18 @@ export class FrontConnector {
         
         // We expect _results to be an array of API resources that match the type specified
         // Caution: Runtime typecasting
-        for (const item of response.body._results as T[]) {
-            resources.push(item);
+        // for (const item of response.body._results as T[]) {
+        //     resources.push(item);
+        // }
+        if (response.body && Array.isArray(response.body._results)) {
+            for (const item of response.body._results as T[]) {
+                resources.push(item);
+            }
+        } else {
+            console.error("Unexpected response structure:", response.body);
+            // Optionally, you could throw an error or return resources as is
         }
+
 
         // If the response has a next URL, call it
         // This URL will include the query string of the base call
